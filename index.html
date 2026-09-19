@@ -44,12 +44,8 @@
         .header-title-box {
             display: flex;
             align-items: center;
-        }
-        .logo-img {
-            height: 32px;
-            width: auto;
-            object-fit: contain;
-            filter: brightness(0) invert(1);
+            font-size: 1.2rem;
+            font-weight: bold;
         }
         .menu-btn {
             background: none;
@@ -253,7 +249,7 @@
     <header>
         <div class="header-content">
             <div class="header-title-box">
-                <img src="P4APpD1ljLUS8O_CTEc47CqvHcObqTU2aO4yQZQmx3NBeeNuwq22I0eJZtgq61sdU9ttAmZkOzjRlc8LnnAYnw.png" alt="서울자전거 따릉이" class="logo-img">
+                서울자전거 따릉이
             </div>
             <div class="menu-container">
                 <button class="menu-btn" onclick="toggleMenu()" aria-label="Menu">☰</button>
@@ -463,14 +459,18 @@
         const chunkCount = 4; 
         const fetchPromises = [];
 
+        // CORS 프록시 서비스 활용
+        const corsProxy = "https://api.allorigins.win/raw?url=";
+
         for (let i = 0; i < chunkCount; i++) {
             const startIdx = (i * 1000) + 1;
             const endIdx = (i + 1) * 1000;
             
-            // HTTPS 보안 통신 적용
-            const url = `https://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
+            // HTTP 서울시 API URL을 프록시 주소로 감쌉니다.
+            const targetUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
+            const proxyUrl = `${corsProxy}${encodeURIComponent(targetUrl)}`;
             
-            const request = fetch(url)
+            const request = fetch(proxyUrl)
                 .then(res => res.json())
                 .catch(error => {
                     console.error(`${startIdx}~${endIdx} 구간 로드 실패:`, error);
