@@ -482,7 +482,7 @@
         for (let i = 0; i < chunkCount; i++) {
             const startIdx = (i * 1000) + 1;
             const endIdx = (i + 1) * 1000;
-            const url = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
+            const url = `https://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
             
             const request = fetch(url)
                 .then(response => response.json())
