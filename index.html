@@ -1,70 +1,721 @@
-// JSONP 처리 함수
-function fetchJsonp(url) {
-    return new Promise((resolve, reject) => {
-        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-        window[callbackName] = function(data) {
-            delete window[callbackName];
-            document.body.removeChild(script);
-            resolve(data);
-        };
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 따릉이 조회</title>
+    <!-- 영한 오타 자동 변환 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/inko@1.1.0/inko.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #15b676; 
+            --bg-color: #f4f6f8;
+            --text-main: #333;
+            --text-sub: #666;
+            --danger-color: #ff4d4f;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+        .app-container {
+            width: 100%;
+            max-width: 100%;
+            background-color: white;
+            min-height: 100vh;
+        }
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+        .header-title-box {
+            display: flex;
+            align-items: center;
+        }
+        .logo-img {
+            height: 32px;
+            width: auto;
+            object-fit: contain;
+            filter: brightness(0) invert(1);
+        }
+        .menu-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.6rem;
+            cursor: pointer;
+            padding: 0 5px;
+            line-height: 1;
+        }
+        .menu-container {
+            position: relative;
+        }
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 40px;
+            background: white;
+            color: var(--text-main);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 8px 0;
+            z-index: 1000;
+            min-width: 160px;
+        }
+        .dropdown-menu.show {
+            display: block;
+        }
+        .dropdown-header {
+            font-weight: bold;
+            font-size: 0.8rem;
+            padding: 6px 14px;
+            color: #888;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 4px;
+        }
+        .dropdown-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .dropdown-item:hover {
+            background-color: var(--bg-color);
+        }
+        .control-panel {
+            padding: 15px 20px;
+            background-color: white;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 56px;
+            z-index: 99;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+        .location-box {
+            display: flex;
+            gap: 8px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid var(--primary-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .error-msg {
+            color: var(--danger-color);
+            font-size: 0.85rem;
+            display: none;
+            margin-top: -2px;
+        }
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.95rem;
+            white-space: nowrap;
+        }
+        .btn-secondary {
+            background-color: #555;
+        }
+        .filter-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        select {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            background-color: white;
+            outline: none;
+            cursor: pointer;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            cursor: pointer;
+            white-space: nowrap;
+            user-select: none;
+        }
+        .checkbox-label input {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary-color);
+        }
+        .status-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-sub);
+            line-height: 1.5;
+        }
+        .bike-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .bike-item {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .station-info {
+            flex-grow: 1;
+            padding-right: 15px;
+        }
+        .station-name {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 6px;
+            color: var(--text-main);
+        }
+        .station-meta {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            display: flex;
+            gap: 12px;
+        }
+        .bike-count-box {
+            text-align: center;
+            background-color: var(--bg-color);
+            padding: 10px 15px;
+            border-radius: 12px;
+            min-width: 70px;
+        }
+        .count-label {
+            font-size: 0.75rem;
+            color: #777;
+            margin-bottom: 4px;
+        }
+        .count-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        .empty .count-number {
+            color: var(--danger-color); 
+        }
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(21, 182, 118, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .total-count {
+            text-align: right;
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
 
-        const script = document.createElement('script');
-        script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + callbackName;
-        script.onerror = function() {
-            delete window[callbackName];
-            document.body.removeChild(script);
-            reject(new Error('JSONP request failed'));
-        };
-        document.body.appendChild(script);
-    });
-}
+<div class="app-container">
+    <header>
+        <div class="header-content">
+            <div class="header-title-box">
+                <img src="P4APpD1ljLUS8O_CTEc47CqvHcObqTU2aO4yQZQmx3NBeeNuwq22I0eJZtgq61sdU9ttAmZkOzjRlc8LnnAYnw.png" alt="서울자전거 따릉이" class="logo-img">
+            </div>
+            <div class="menu-container">
+                <button class="menu-btn" onclick="toggleMenu()" aria-label="Menu">☰</button>
+                <div id="dropdownMenu" class="dropdown-menu">
+                    <div class="dropdown-header" id="langMenuTitle">언어 설정</div>
+                    <div class="dropdown-item" onclick="setLanguage('ko')">한국어</div>
+                    <div class="dropdown-item" onclick="setLanguage('en')">English</div>
+                </div>
+            </div>
+        </div>
+    </header>
 
-async function fetchBikeData() {
-    const statusMessage = document.getElementById('statusMessage');
-    const t = translations[currentLang];
+    <div class="control-panel">
+        <div class="location-box">
+            <input type="text" id="locationInput" placeholder="기준 지역/역 입력 (예: 망원역, dlchs)">
+            <button class="btn" onclick="openMap()" id="mapBtnText">지도 보기</button>
+            <button class="btn btn-secondary" onclick="setGPSLocation()" id="gpsBtnText">내 위치</button>
+        </div>
+        <div id="locationError" class="error-msg"></div>
+        <input type="text" id="searchInput" placeholder="대여소 이름 또는 번호 검색...">
+        
+        <div class="filter-row">
+            <select id="sortSelect" onchange="changeSort(this.value)">
+                <option value="number">번호순</option>
+                <option value="available">대여가능순 (3km 이내)</option>
+                <option value="distance">거리순 (3km 이내)</option>
+            </select>
+            <label class="checkbox-label">
+                <input type="checkbox" id="hideEmpty" onchange="updateAndRender()"> <span id="hideEmptyText">대여 가능 0개 제외</span>
+            </label>
+        </div>
+
+        <div id="totalCount" class="total-count"></div>
+    </div>
+
+    <div id="statusMessage" class="status-message">
+        <div class="spinner"></div>
+        <p id="loadingText">전체 따릉이 대여소 정보를<br>불러오고 취합하는 중입니다...</p>
+    </div>
+
+    <ul id="bikeList" class="bike-list"></ul>
+</div>
+
+<script>
+    const API_KEY = "726648416862696e3130364266596f65"; 
+
+    let allStations = []; 
+    let currentSort = 'number'; 
+    let currentLang = 'ko'; 
     
-    if (API_KEY === "여기에_API_키를_입력하세요" || API_KEY.trim() === "") {
-        statusMessage.innerHTML = `<p style='color:red;'>${t.errorApi}</p>`;
-        return;
-    }
-
-    const chunkCount = 4; 
-    const fetchPromises = [];
-
-    for (let i = 0; i < chunkCount; i++) {
-        const startIdx = (i * 1000) + 1;
-        const endIdx = (i + 1) * 1000;
-        
-        // 서울시 API URL (JSONP 방식)
-        const url = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
-        
-        const request = fetchJsonp(url)
-            .catch(error => {
-                console.error(`${startIdx}~${endIdx} 구간 로드 실패:`, error);
-                return null;
-            });
-        fetchPromises.push(request);
-    }
-
+    let inko = null;
     try {
-        const results = await Promise.all(fetchPromises);
-        
-        allStations = [];
-        results.forEach(data => {
-            if (data && data.rentBikeStatus && data.rentBikeStatus.row) {
-                allStations = allStations.concat(data.rentBikeStatus.row);
+        if (typeof Inko !== 'undefined') {
+            inko = new Inko();
+        }
+    } catch (e) {
+        console.warn("Inko initialization failed");
+    }
+
+    const translations = {
+        ko: {
+            langMenuTitle: "언어 설정",
+            locationPlaceholder: "기준 지역/역 입력 (예: 망원역, dlchs)",
+            mapBtn: "지도 보기",
+            gpsBtn: "내 위치",
+            searchPlaceholder: "대여소 이름 또는 번호 검색...",
+            sortNumber: "번호순",
+            sortAvailable: "대여가능순 (3km 이내)",
+            sortDistance: "거리순 (3km 이내)",
+            hideEmptyText: "대여 가능 0개 제외",
+            loadingText: "전체 따릉이 대여소 정보를<br>불러오고 취합하는 중입니다...",
+            errorApi: "API 키가 입력되지 않았습니다.",
+            errorFetch: "데이터를 불러오는 데 실패했습니다.",
+            errorLocationEmpty: "기준 지역이나 역 이름을 입력해주세요.",
+            errorLocationNotFound: "해당 이름의 대여소를 찾을 수 없습니다.",
+            errorGpsNotSupported: "이 브라우저는 위치 정보를 지원하지 않습니다.",
+            errorGpsPermission: "위치 권한을 허용해야 내 위치 기능을 사용할 수 있습니다.",
+            gpsFinding: "현재 위치를 찾는 중...",
+            noResults: "검색 결과가 없습니다.",
+            rackLabel: (count) => `거치대 ${count}개`,
+            distLabel: (dist) => `거리 ${dist}`,
+            availableLabel: "대여 가능",
+            refDefault: "서울시청 기준",
+            refGps: "현재 내 위치 기준",
+            refPrefix: "기준: ",
+            totalCountText: (count) => `총 ${count.toLocaleString()}개 대여소`
+        },
+        en: {
+            langMenuTitle: "Language Settings",
+            locationPlaceholder: "Enter station/area (e.g. Mangwon, dlchs)",
+            mapBtn: "View Map",
+            gpsBtn: "My Location",
+            searchPlaceholder: "Search station name or number...",
+            sortNumber: "By Number",
+            sortAvailable: "By Availability (within 3km)",
+            sortDistance: "By Distance (within 3km)",
+            hideEmptyText: "Hide 0 available",
+            loadingText: "Loading and compiling<br>all bike station information...",
+            errorApi: "API key is not entered.",
+            errorFetch: "Failed to load data.",
+            errorLocationEmpty: "Please enter a reference area or station name.",
+            errorLocationNotFound: "Station not found with that name.",
+            errorGpsNotSupported: "This browser does not support geolocation.",
+            errorGpsPermission: "Location permission is required.",
+            gpsFinding: "Finding current location...",
+            noResults: "No search results found.",
+            rackLabel: (count) => `Racks: ${count}`,
+            distLabel: (dist) => `Dist: ${dist}`,
+            availableLabel: "Available",
+            refDefault: "Based on Seoul City Hall",
+            refGps: "Based on Current Location",
+            refPrefix: "Ref: ",
+            totalCountText: (count) => `Total ${count.toLocaleString()} stations`
+        }
+    };
+
+    let refLat = 37.5665;
+    let refLon = 126.9780;
+    let refNameType = 'default'; 
+    let customRefName = '';
+
+    function toggleMenu() {
+        const menu = document.getElementById('dropdownMenu');
+        menu.classList.toggle('show');
+    }
+
+    window.addEventListener('click', function(e) {
+        if (!e.target.closest('.menu-container')) {
+            const menu = document.getElementById('dropdownMenu');
+            if (menu && menu.classList.contains('show')) {
+                menu.classList.remove('show');
             }
+        }
+    });
+
+    function setLanguage(lang) {
+        currentLang = lang;
+        const t = translations[currentLang];
+
+        document.getElementById('langMenuTitle').innerText = t.langMenuTitle;
+        document.getElementById('locationInput').placeholder = t.locationPlaceholder;
+        document.getElementById('mapBtnText').innerText = t.mapBtn;
+        document.getElementById('gpsBtnText').innerText = t.gpsBtn;
+        document.getElementById('searchInput').placeholder = t.searchPlaceholder;
+        
+        const sortSelect = document.getElementById('sortSelect');
+        sortSelect.options[0].text = t.sortNumber;
+        sortSelect.options[1].text = t.sortAvailable;
+        sortSelect.options[2].text = t.sortDistance;
+
+        document.getElementById('hideEmptyText').innerText = t.hideEmptyText;
+        document.getElementById('loadingText').innerHTML = t.loadingText;
+
+        updateTotalCountText();
+        updateAndRender();
+        toggleMenu();
+    }
+
+    function updateTotalCountText() {
+        const t = translations[currentLang];
+        let displayRefName = '';
+        if (refNameType === 'default') {
+            displayRefName = t.refDefault;
+        } else if (refNameType === 'gps') {
+            displayRefName = t.refGps;
+        } else {
+            displayRefName = `${t.refPrefix}${customRefName}`;
+        }
+
+        const totalCountDiv = document.getElementById('totalCount');
+        if (allStations.length > 0) {
+            totalCountDiv.innerText = `${displayRefName} / ${t.totalCountText(allStations.length)}`;
+        }
+    }
+
+    function getSearchKeywords(inputVal) {
+        const trimmed = inputVal.trim();
+        if (!trimmed) return [];
+        let keywords = [trimmed.toLowerCase()];
+        
+        if (inko) {
+            try {
+                const converted = inko.en2ko(trimmed);
+                if (converted && converted !== trimmed) {
+                    keywords.push(converted.toLowerCase());
+                }
+            } catch (e) {}
+        }
+        return keywords;
+    }
+
+    function matchesKeyword(stationName, keywords) {
+        if (keywords.length === 0) return true;
+        const lowerName = stationName.toLowerCase();
+        return keywords.some(kw => lowerName.includes(kw));
+    }
+
+    // JSONP 요청 함수 (CORS 우회)
+    function fetchJsonp(url) {
+        return new Promise((resolve, reject) => {
+            const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+            window[callbackName] = function(data) {
+                delete window[callbackName];
+                document.body.removeChild(script);
+                resolve(data);
+            };
+
+            const script = document.createElement('script');
+            script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + callbackName;
+            script.onerror = function() {
+                delete window[callbackName];
+                document.body.removeChild(script);
+                reject(new Error('JSONP request failed'));
+            };
+            document.body.appendChild(script);
+        });
+    }
+
+    async function fetchBikeData() {
+        const statusMessage = document.getElementById('statusMessage');
+        const t = translations[currentLang];
+        
+        if (!API_KEY || API_KEY.trim() === "") {
+            statusMessage.innerHTML = `<p style='color:red;'>${t.errorApi}</p>`;
+            return;
+        }
+
+        const chunkCount = 4; 
+        const fetchPromises = [];
+
+        for (let i = 0; i < chunkCount; i++) {
+            const startIdx = (i * 1000) + 1;
+            const endIdx = (i + 1) * 1000;
+            
+            const url = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
+            
+            const request = fetchJsonp(url)
+                .catch(error => {
+                    console.error(`${startIdx}~${endIdx} 구간 로드 실패:`, error);
+                    return null;
+                });
+            fetchPromises.push(request);
+        }
+
+        try {
+            const results = await Promise.all(fetchPromises);
+            
+            allStations = [];
+            results.forEach(data => {
+                if (data && data.rentBikeStatus && data.rentBikeStatus.row) {
+                    allStations = allStations.concat(data.rentBikeStatus.row);
+                }
+            });
+
+            if (allStations.length > 0) {
+                statusMessage.style.display = 'none'; 
+                updateTotalCountText();
+                updateAndRender(); 
+            } else {
+                throw new Error("데이터 수신 실패");
+            }
+        } catch (error) {
+            console.error("최종 병합 실패:", error);
+            statusMessage.innerHTML = `<p style="color:red;">${t.errorFetch}</p>`;
+        }
+    }
+
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; 
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c; 
+    }
+
+    function searchLocationQuiet() {
+        const inputVal = document.getElementById('locationInput').value;
+        const keywords = getSearchKeywords(inputVal);
+        const errorDiv = document.getElementById('locationError');
+        const t = translations[currentLang];
+
+        if (keywords.length === 0 || !inputVal.trim()) {
+            errorDiv.innerText = t.errorLocationEmpty;
+            errorDiv.style.display = 'block';
+            return false;
+        }
+
+        let found = null;
+        for (const kw of keywords) {
+            found = allStations.find(station => station.stationName.toLowerCase().includes(kw));
+            if (found) break;
+        }
+
+        if (found) {
+            errorDiv.style.display = 'none'; 
+            refLat = parseFloat(found.stationLatitude);
+            refLon = parseFloat(found.stationLongitude);
+            refNameType = 'custom';
+            customRefName = found.stationName;
+            updateTotalCountText();
+            updateAndRender();
+            return true;
+        } else {
+            errorDiv.innerText = t.errorLocationNotFound;
+            errorDiv.style.display = 'block';
+            return false;
+        }
+    }
+
+    function openMap() {
+        const keyword = document.getElementById('locationInput').value.trim();
+        let targetLat = refLat;
+        let targetLon = refLon;
+        let mapName = "서울시청";
+
+        if (keyword) {
+            const keywords = getSearchKeywords(keyword);
+            let found = null;
+            for (const kw of keywords) {
+                found = allStations.find(station => station.stationName.toLowerCase().includes(kw));
+                if (found) break;
+            }
+            if (found) {
+                targetLat = parseFloat(found.stationLatitude);
+                targetLon = parseFloat(found.stationLongitude);
+                mapName = found.stationName;
+            }
+        }
+        window.open(`https://map.kakao.com/link/map/${encodeURIComponent(mapName)},${targetLat},${targetLon}`, '_blank');
+    }
+
+    function setGPSLocation() {
+        const errorDiv = document.getElementById('locationError');
+        const t = translations[currentLang];
+        if (!navigator.geolocation) {
+            errorDiv.innerText = t.errorGpsNotSupported;
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        errorDiv.style.display = 'none';
+        document.getElementById('totalCount').innerText = t.gpsFinding;
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                refLat = position.coords.latitude;
+                refLon = position.coords.longitude;
+                refNameType = 'gps';
+                updateTotalCountText();
+                updateAndRender();
+            },
+            (error) => {
+                errorDiv.innerText = t.errorGpsPermission;
+                errorDiv.style.display = 'block';
+                updateTotalCountText();
+            }
+        );
+    }
+
+    function changeSort(sortType) {
+        currentSort = sortType;
+        updateAndRender();
+    }
+
+    function updateAndRender() {
+        const searchInputVal = document.getElementById('searchInput').value;
+        const searchKeywords = getSearchKeywords(searchInputVal);
+        const hideEmptyChecked = document.getElementById('hideEmpty').checked;
+
+        let targetStations = allStations.filter(station => 
+            matchesKeyword(station.stationName, searchKeywords)
+        );
+
+        if (hideEmptyChecked) {
+            targetStations = targetStations.filter(station => 
+                parseInt(station.parkingBikeTotCnt, 10) > 0
+            );
+        }
+
+        targetStations = targetStations.map(station => {
+            const dist = calculateDistance(refLat, refLon, parseFloat(station.stationLatitude), parseFloat(station.stationLongitude));
+            return { ...station, distance: dist };
         });
 
-        if (allStations.length > 0) {
-            statusMessage.style.display = 'none'; 
-            updateTotalCountText();
-            updateAndRender(); 
-        } else {
-            throw new Error("데이터를 가져오지 못했습니다.");
+        if (currentSort === 'number') {
+            targetStations.sort((a, b) => {
+                const numA = parseInt(a.stationName, 10) || 0;
+                const numB = parseInt(b.stationName, 10) || 0;
+                return numA - numB;
+            });
+        } else if (currentSort === 'available') {
+            targetStations = targetStations.filter(s => s.distance <= 3.0);
+            targetStations.sort((a, b) => parseInt(b.parkingBikeTotCnt, 10) - parseInt(a.parkingBikeTotCnt, 10));
+        } else if (currentSort === 'distance') {
+            targetStations = targetStations.filter(s => s.distance <= 3.0);
+            targetStations.sort((a, b) => a.distance - b.distance);
         }
-    } catch (error) {
-        console.error("최종 데이터 병합 실패:", error);
-        statusMessage.innerHTML = `<p style="color:red;">${t.errorFetch}</p>`;
+
+        renderList(targetStations);
     }
-}
+
+    function renderList(stations) {
+        const listContainer = document.getElementById('bikeList');
+        listContainer.innerHTML = ''; 
+        const t = translations[currentLang];
+
+        if (stations.length === 0) {
+            listContainer.innerHTML = `<div class="status-message">${t.noResults}</div>`;
+            return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        const limit = Math.min(stations.length, 150);
+
+        for (let i = 0; i < limit; i++) {
+            const station = stations[i];
+            const name = station.stationName; 
+            const availableBikes = parseInt(station.parkingBikeTotCnt, 10);
+            const isEmpty = availableBikes === 0;
+            
+            const distText = `${station.distance.toFixed(2)}km`;
+
+            const li = document.createElement('li');
+            li.className = 'bike-item';
+            li.innerHTML = `
+                <div class="station-info">
+                    <div class="station-name">${name}</div>
+                    <div class="station-meta">
+                        <span>${t.rackLabel(station.rackTotCnt)}</span>
+                        <span>${t.distLabel(distText)}</span>
+                    </div>
+                </div>
+                <div class="bike-count-box ${isEmpty ? 'empty' : ''}">
+                    <div class="count-label">${t.availableLabel}</div>
+                    <div class="count-number">${availableBikes}</div>
+                </div>
+            `;
+            fragment.appendChild(li);
+        }
+
+        listContainer.appendChild(fragment);
+    }
+
+    document.getElementById('searchInput').addEventListener('input', updateAndRender);
+    document.getElementById('searchInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') this.blur();
+    });
+
+    document.getElementById('locationInput').addEventListener('input', function() {
+        document.getElementById('locationError').style.display = 'none';
+    });
+
+    document.getElementById('locationInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchLocationQuiet();
+            this.blur();
+        }
+    });
+
+    window.onload = fetchBikeData;
+</script>
+</body>
+</html>
