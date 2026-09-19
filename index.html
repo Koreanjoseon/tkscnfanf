@@ -264,7 +264,7 @@
 
     <div class="control-panel">
         <div class="location-box">
-            <input type="text" id="locationInput" placeholder="기준 지역/역 입력 (예: 망원역, dlchs)">
+            <input type="text" id="locationInput" placeholder="기준 지역/역 입력 (예: 이촌, 선린, 망원역)">
             <button class="btn" onclick="openMap()" id="mapBtnText">지도 보기</button>
             <button class="btn btn-secondary" onclick="setGPSLocation()" id="gpsBtnText">내 위치</button>
         </div>
@@ -312,7 +312,7 @@
     const translations = {
         ko: {
             langMenuTitle: "언어 설정",
-            locationPlaceholder: "기준 지역/역 입력 (예: 망원역, dlchs)",
+            locationPlaceholder: "기준 지역/역 입력 (예: 이촌, 선린, 망원역)",
             mapBtn: "지도 보기",
             gpsBtn: "내 위치",
             searchPlaceholder: "대여소 이름 또는 번호 검색...",
@@ -324,7 +324,7 @@
             errorApi: "API 키가 입력되지 않았습니다.",
             errorFetch: "데이터를 불러오는 데 실패했습니다.",
             errorLocationEmpty: "기준 지역이나 역 이름을 입력해주세요.",
-            errorLocationNotFound: "해당 이름의 대여소를 찾을 수 없습니다.",
+            errorLocationNotFound: "해당 위치 또는 대여소를 찾을 수 없습니다.",
             errorGpsNotSupported: "이 브라우저는 위치 정보를 지원하지 않습니다.",
             errorGpsPermission: "위치 권한을 허용해야 내 위치 기능을 사용할 수 있습니다.",
             gpsFinding: "현재 위치를 찾는 중...",
@@ -339,7 +339,7 @@
         },
         en: {
             langMenuTitle: "Language Settings",
-            locationPlaceholder: "Enter station/area (e.g. Mangwon, dlchs)",
+            locationPlaceholder: "Enter area/station (e.g. Ichon, Sunrin, Mangwon)",
             mapBtn: "View Map",
             gpsBtn: "My Location",
             searchPlaceholder: "Search station name or number...",
@@ -351,7 +351,7 @@
             errorApi: "API key is not entered.",
             errorFetch: "Failed to load data.",
             errorLocationEmpty: "Please enter a reference area or station name.",
-            errorLocationNotFound: "Station not found with that name.",
+            errorLocationNotFound: "Location or station not found.",
             errorGpsNotSupported: "This browser does not support geolocation.",
             errorGpsPermission: "Location permission is required.",
             gpsFinding: "Finding current location...",
@@ -456,17 +456,14 @@
             return;
         }
 
-        const chunkCount = 4; 
+        const chunkCount = 5; 
         const fetchPromises = [];
-
-        // CORS 프록시 서비스 활용
         const corsProxy = "https://api.allorigins.win/raw?url=";
 
         for (let i = 0; i < chunkCount; i++) {
             const startIdx = (i * 1000) + 1;
             const endIdx = (i + 1) * 1000;
             
-            // HTTP 서울시 API URL을 프록시 주소로 감쌉니다.
             const targetUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
             const proxyUrl = `${corsProxy}${encodeURIComponent(targetUrl)}`;
             
@@ -513,18 +510,21 @@
         return R * c; 
     }
 
-    function searchLocationQuiet() {
-        const inputVal = document.getElementById('locationInput').value;
-        const keywords = getSearchKeywords(inputVal);
+    // 카카오 지도 장소 검색 API를 이용하여 위치 좌표 수집
+    async function searchLocationQuiet() {
+        const inputVal = document.getElementById('locationInput').value.trim();
         const errorDiv = document.getElementById('locationError');
         const t = translations[currentLang];
 
-        if (keywords.length === 0 || !inputVal.trim()) {
+        if (!inputVal) {
             errorDiv.innerText = t.errorLocationEmpty;
             errorDiv.style.display = 'block';
             return false;
         }
 
+        const keywords = getSearchKeywords(inputVal);
+
+        // 1. 대여소 목록에서 직접 매칭 시도
         let found = null;
         for (const kw of keywords) {
             found = allStations.find(station => station.stationName.toLowerCase().includes(kw));
@@ -537,14 +537,42 @@
             refLon = parseFloat(found.stationLongitude);
             refNameType = 'custom';
             customRefName = found.stationName;
+            document.getElementById('searchInput').value = inputVal;
             updateTotalCountText();
             updateAndRender();
             return true;
-        } else {
-            errorDiv.innerText = t.errorLocationNotFound;
-            errorDiv.style.display = 'block';
-            return false;
         }
+
+        // 2. 대여소 이름에 직접 포함되지 않은 키워드일 경우 (예: '이촌', '선린') Kakao API로 장소 검색
+        try {
+            const query = encodeURIComponent(keywords[0] + " 서울");
+            const res = await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?query=${query}`, {
+                headers: {
+                    'Authorization': 'KakaoAK 8a4be014a6e8df81512aa66db28e5760'
+                }
+            });
+            const data = await res.json();
+
+            if (data.documents && data.documents.length > 0) {
+                const place = data.documents[0];
+                refLat = parseFloat(place.y);
+                refLon = parseFloat(place.x);
+                refNameType = 'custom';
+                customRefName = place.place_name;
+
+                errorDiv.style.display = 'none';
+                document.getElementById('searchInput').value = '';
+                updateTotalCountText();
+                updateAndRender();
+                return true;
+            }
+        } catch (e) {
+            console.error("장소 검색 실패:", e);
+        }
+
+        errorDiv.innerText = t.errorLocationNotFound;
+        errorDiv.style.display = 'block';
+        return false;
     }
 
     function openMap() {
@@ -554,19 +582,19 @@
         let mapName = "서울시청";
 
         if (keyword) {
-            const keywords = getSearchKeywords(keyword);
-            let found = null;
-            for (const kw of keywords) {
-                found = allStations.find(station => station.stationName.toLowerCase().includes(kw));
-                if (found) break;
-            }
-            if (found) {
-                targetLat = parseFloat(found.stationLatitude);
-                targetLon = parseFloat(found.stationLongitude);
-                mapName = found.stationName;
-            }
+            searchLocationQuiet().then(isFound => {
+                if (isFound) {
+                    targetLat = refLat;
+                    targetLon = refLon;
+                    mapName = customRefName;
+                } else {
+                    mapName = keyword;
+                }
+                window.open(`https://map.kakao.com/link/map/${encodeURIComponent(mapName)},${targetLat},${targetLon}`, '_blank');
+            });
+        } else {
+            window.open(`https://map.kakao.com/link/map/${encodeURIComponent(mapName)},${targetLat},${targetLon}`, '_blank');
         }
-        window.open(`https://map.kakao.com/link/map/${encodeURIComponent(mapName)},${targetLat},${targetLon}`, '_blank');
     }
 
     function setGPSLocation() {
@@ -585,6 +613,8 @@
                 refLat = position.coords.latitude;
                 refLon = position.coords.longitude;
                 refNameType = 'gps';
+                document.getElementById('locationInput').value = '';
+                document.getElementById('searchInput').value = '';
                 updateTotalCountText();
                 updateAndRender();
             },
