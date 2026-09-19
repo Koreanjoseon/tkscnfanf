@@ -451,27 +451,6 @@
         return keywords.some(kw => lowerName.includes(kw));
     }
 
-    // JSONP 요청 함수 (CORS 우회)
-    function fetchJsonp(url) {
-        return new Promise((resolve, reject) => {
-            const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-            window[callbackName] = function(data) {
-                delete window[callbackName];
-                document.body.removeChild(script);
-                resolve(data);
-            };
-
-            const script = document.createElement('script');
-            script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + callbackName;
-            script.onerror = function() {
-                delete window[callbackName];
-                document.body.removeChild(script);
-                reject(new Error('JSONP request failed'));
-            };
-            document.body.appendChild(script);
-        });
-    }
-
     async function fetchBikeData() {
         const statusMessage = document.getElementById('statusMessage');
         const t = translations[currentLang];
@@ -488,9 +467,11 @@
             const startIdx = (i * 1000) + 1;
             const endIdx = (i + 1) * 1000;
             
-            const url = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
+            // HTTPS 보안 통신 적용
+            const url = `https://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
             
-            const request = fetchJsonp(url)
+            const request = fetch(url)
+                .then(res => res.json())
                 .catch(error => {
                     console.error(`${startIdx}~${endIdx} 구간 로드 실패:`, error);
                     return null;
