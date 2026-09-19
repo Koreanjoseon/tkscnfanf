@@ -482,11 +482,18 @@
         for (let i = 0; i < chunkCount; i++) {
             const startIdx = (i * 1000) + 1;
             const endIdx = (i + 1) * 1000;
+    
+            // 서울시 API URL (HTTP)
             const targetUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
-            const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-            
+    
+            // allorigins 우회 프록시 적용
+            const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+    
             const request = fetch(url)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) throw new Error("Network response was not ok");
+                    return response.json();
+                })
                 .catch(error => {
                     console.error(`${startIdx}~${endIdx} 구간 로드 실패:`, error);
                     return null;
