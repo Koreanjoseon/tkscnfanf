@@ -302,7 +302,7 @@
 
 <script>
     // ============================================================================
-    // [설정] 발급받은 API 키를 아래 변수에 넣어주세요. (따옴표 안에 입력)
+    // [설정] 발급받은 API 키
     const API_KEY = "726648416862696e3130364266596f65"; 
     // ============================================================================
 
@@ -467,6 +467,27 @@
         return keywords.some(kw => lowerName.includes(kw));
     }
 
+    // HTTPS/CORS 제약을 우회하기 위한 JSONP 처리 함수
+    function fetchJsonp(url) {
+        return new Promise((resolve, reject) => {
+            const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+            window[callbackName] = function(data) {
+                delete window[callbackName];
+                document.body.removeChild(script);
+                resolve(data);
+            };
+
+            const script = document.createElement('script');
+            script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + callbackName;
+            script.onerror = function() {
+                delete window[callbackName];
+                document.body.removeChild(script);
+                reject(new Error('JSONP request failed'));
+            };
+            document.body.appendChild(script);
+        });
+    }
+
     async function fetchBikeData() {
         const statusMessage = document.getElementById('statusMessage');
         const t = translations[currentLang];
@@ -482,18 +503,11 @@
         for (let i = 0; i < chunkCount; i++) {
             const startIdx = (i * 1000) + 1;
             const endIdx = (i + 1) * 1000;
-    
-            // 서울시 API URL (HTTP)
-            const targetUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
-    
-            // allorigins 우회 프록시 적용
-            const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-    
-            const request = fetch(url)
-                .then(response => {
-                    if (!response.ok) throw new Error("Network response was not ok");
-                    return response.json();
-                })
+            
+            // 서울시 API URL (JSONP 호출)
+            const url = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/${startIdx}/${endIdx}/`;
+            
+            const request = fetchJsonp(url)
                 .catch(error => {
                     console.error(`${startIdx}~${endIdx} 구간 로드 실패:`, error);
                     return null;
@@ -504,6 +518,7 @@
         try {
             const results = await Promise.all(fetchPromises);
             
+            allStations = [];
             results.forEach(data => {
                 if (data && data.rentBikeStatus && data.rentBikeStatus.row) {
                     allStations = allStations.concat(data.rentBikeStatus.row);
